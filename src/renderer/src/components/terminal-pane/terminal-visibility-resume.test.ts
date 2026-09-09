@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PaneManager } from '@/lib/pane-manager/pane-manager'
 import {
   recoverVisibleTerminalWindowWake,
@@ -315,5 +315,55 @@ describe('resumeTerminalVisibility reveal repaint', () => {
     expect(manager.resumeRendering).toHaveBeenCalledTimes(1)
     expect(manager.scheduleRevealPresent).toHaveBeenCalledTimes(1)
     expect(manager.scheduleRevealRepaint).not.toHaveBeenCalled()
+  })
+})
+
+describe('reveal focus is suppressed when Orca is not the OS-focused window', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('does not focus the active pane on a light reveal when the window is unfocused', async () => {
+    vi.stubGlobal('document', { hasFocus: vi.fn(() => false) })
+    const { focusActivePane } = vi.mocked(await import('./pane-helpers'))
+
+    resumeTerminalVisibility(resumeArgs(createManager(), true))
+
+    expect(focusActivePane).not.toHaveBeenCalled()
+  })
+
+  it('does not focus the active pane on a heavy reveal when the window is unfocused', async () => {
+    vi.stubGlobal('document', { hasFocus: vi.fn(() => false) })
+    const { focusActivePane } = vi.mocked(await import('./pane-helpers'))
+
+    resumeTerminalVisibility(resumeArgs(createManager(), false))
+
+    expect(focusActivePane).not.toHaveBeenCalled()
+  })
+
+  it('does not focus the active pane on a machine wake when the window is unfocused', async () => {
+    vi.stubGlobal('document', { hasFocus: vi.fn(() => false) })
+    const { focusActivePane } = vi.mocked(await import('./pane-helpers'))
+
+    recoverVisibleTerminalWindowWake({
+      manager: createManager() as never as PaneManager,
+      isActive: true,
+      clearGlyphAtlases: false
+    })
+
+    expect(focusActivePane).not.toHaveBeenCalled()
+  })
+
+  it('still focuses the active pane on reveal when the window is focused', async () => {
+    vi.stubGlobal('document', { hasFocus: vi.fn(() => true) })
+    const { focusActivePane } = vi.mocked(await import('./pane-helpers'))
+
+    resumeTerminalVisibility(resumeArgs(createManager(), true))
+
+    expect(focusActivePane).toHaveBeenCalledTimes(1)
   })
 })

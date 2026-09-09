@@ -18,6 +18,20 @@ import { scheduleTabRevealWebglAtlasRecovery } from './terminal-webgl-atlas-reco
 import { flushDeferredPaneMetricOptionsIfMeasurable } from '@/lib/pane-manager/pane-fit'
 import { repairPaneWebglCanvasDprMismatch } from '@/lib/pane-manager/terminal-canvas-dpr-repair'
 
+// Why: a programmatic reveal (agent/CLI worktree activation, machine wake) must not
+// raise the OS window when Orca isn't the focused window. typeof guards keep the
+// no-/partial-DOM unit env falling through to the prior always-focus behavior.
+function focusActivePaneIfWindowFocused(manager: PaneManager): void {
+  if (
+    typeof document !== 'undefined' &&
+    typeof document.hasFocus === 'function' &&
+    !document.hasFocus()
+  ) {
+    return
+  }
+  focusActivePane(manager)
+}
+
 const VISIBLE_RESUME_FLUSH_CHARS = 256 * 1024
 const WINDOW_WAKE_FLUSH_CHARS = 64 * 1024
 
@@ -96,7 +110,7 @@ export function resumeTerminalVisibility({
         manager.fitAllRevealedPanes()
       }
       if (isActive) {
-        focusActivePane(manager)
+        focusActivePaneIfWindowFocused(manager)
       }
     } else {
       // fitAllRevealedPanes flushes after WebGL reattaches, avoiding a redundant
@@ -175,7 +189,8 @@ export function recoverVisibleTerminalWindowWake({
   // Why: wake re-attaches WebGL — same transient cell-metric wobble guard as the heavy resume.
   manager.fitAllRevealedPanes()
   if (isActive) {
-    focusActivePane(manager)
+    // Why guarded: a machine wake fires whether or not the user returned to Orca; refocus only when Orca owns focus.
+    focusActivePaneIfWindowFocused(manager)
   }
   enforceTerminalViewportIntents(manager)
   if (clearGlyphAtlases) {
@@ -219,7 +234,7 @@ function resumeTerminalVisibilityHeavy(manager: PaneManager, isActive: boolean):
   // grid and garbles diff-painting inline TUIs (grok minimize→restore).
   manager.fitAllRevealedPanes()
   if (isActive) {
-    focusActivePane(manager)
+    focusActivePaneIfWindowFocused(manager)
   }
 }
 
